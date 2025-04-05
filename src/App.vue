@@ -1,9 +1,26 @@
 <script setup lang="ts">
-  import HelloWorld from './components/HelloWorld.vue'
+  import { watch } from 'vue'
+  import { useRoute } from 'vue-router'
+
+  const route = useRoute()
+
+  // 监听路由变化，滚动到顶部
+  watch(
+    () => route.path,
+    () => {
+      window.scrollTo(0, 0)
+    }
+  )
 </script>
 
 <template>
-  <router-view></router-view>
+  <div class="app-container">
+    <router-view v-slot="{ Component }">
+      <transition name="fade" mode="out-in">
+        <component :is="Component" />
+      </transition>
+    </router-view>
+  </div>
 </template>
 
 <style>
@@ -20,5 +37,20 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     color: #2c3e50;
+  }
+
+  .app-container {
+    height: 100%;
+  }
+
+  /* 页面过渡动画 */
+  .fade-enter-active,
+  .fade-leave-active {
+    transition: opacity 0.3s ease;
+  }
+
+  .fade-enter-from,
+  .fade-leave-to {
+    opacity: 0;
   }
 </style>

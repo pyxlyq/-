@@ -1,86 +1,74 @@
 <template>
   <div class="dashboard">
-    <el-container>
-      <el-header>
-        <h1>电商数据可视化分析平台</h1>
-        <el-menu mode="horizontal" router>
-          <el-menu-item index="/">仪表盘</el-menu-item>
-          <el-menu-item index="/user-analysis">用户分析</el-menu-item>
-          <el-menu-item index="/product-analysis">商品分析</el-menu-item>
-          <el-menu-item index="/sales-trend">销售趋势</el-menu-item>
-        </el-menu>
-      </el-header>
-      <el-main>
-        <el-row :gutter="20">
-          <el-col :span="8">
-            <el-card>
-              <template #header>
-                <div class="card-header">
-                  <span>总用户数</span>
-                </div>
-              </template>
-              <div class="card-content">
-                <h2>{{ dashboardData?.userCount || 0 }}</h2>
-              </div>
-            </el-card>
-          </el-col>
-          <el-col :span="8">
-            <el-card>
-              <template #header>
-                <div class="card-header">
-                  <span>总商品数</span>
-                </div>
-              </template>
-              <div class="card-content">
-                <h2>{{ dashboardData?.productCount || 0 }}</h2>
-              </div>
-            </el-card>
-          </el-col>
-          <el-col :span="8">
-            <el-card>
-              <template #header>
-                <div class="card-header">
-                  <span>今日销售额</span>
-                </div>
-              </template>
-              <div class="card-content">
-                <h2>¥{{ dashboardData?.todaySales || 0 }}</h2>
-              </div>
-            </el-card>
-          </el-col>
-        </el-row>
-        <el-row :gutter="20" class="mt-20">
-          <el-col :span="12">
-            <el-card>
-              <template #header>
-                <div class="card-header">
-                  <span>用户转化漏斗</span>
-                </div>
-              </template>
-              <div ref="funnelChart" class="chart"></div>
-            </el-card>
-          </el-col>
-          <el-col :span="12">
-            <el-card>
-              <template #header>
-                <div class="card-header">
-                  <span>商品热度分布</span>
-                </div>
-              </template>
-              <div ref="heatmapChart" class="chart"></div>
-            </el-card>
-          </el-col>
-        </el-row>
-      </el-main>
-    </el-container>
+    <el-row v-loading="store.loading" :gutter="20">
+      <el-col :span="8">
+        <el-card shadow="hover">
+          <template #header>
+            <div class="card-header">
+              <span>总用户数</span>
+            </div>
+          </template>
+          <div class="card-content">
+            <h2>{{ dashboardData?.userCount || 0 }}</h2>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="8">
+        <el-card shadow="hover">
+          <template #header>
+            <div class="card-header">
+              <span>总商品数</span>
+            </div>
+          </template>
+          <div class="card-content">
+            <h2>{{ dashboardData?.productCount || 0 }}</h2>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="8">
+        <el-card shadow="hover">
+          <template #header>
+            <div class="card-header">
+              <span>今日销售额</span>
+            </div>
+          </template>
+          <div class="card-content">
+            <h2>¥{{ dashboardData?.todaySales || 0 }}</h2>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
+    <el-row :gutter="20" class="mt-20">
+      <el-col :span="12">
+        <el-card shadow="hover">
+          <template #header>
+            <div class="card-header">
+              <span>用户转化漏斗</span>
+            </div>
+          </template>
+          <div ref="funnelChart" class="chart"></div>
+        </el-card>
+      </el-col>
+      <el-col :span="12">
+        <el-card shadow="hover">
+          <template #header>
+            <div class="card-header">
+              <span>商品热度分布</span>
+            </div>
+          </template>
+          <div ref="heatmapChart" class="chart"></div>
+        </el-card>
+      </el-col>
+    </el-row>
   </div>
 </template>
 
 <script setup lang="ts">
-  import { ref, onMounted, onUnmounted, watch } from 'vue'
+  import { ref, onMounted, onUnmounted } from 'vue'
   import * as echarts from 'echarts'
   import { useDashboardStore } from '@/stores/dashboard'
   import type { DashboardData } from '@/api/dashboard'
+  import { ElMessage } from 'element-plus'
 
   const store = useDashboardStore()
   const dashboardData = ref<DashboardData | null>(null)
@@ -91,6 +79,9 @@
 
   const initFunnelChart = (data: DashboardData['userConversion']) => {
     if (!funnelChart.value) return
+    if (funnelChartInstance) {
+      funnelChartInstance.dispose()
+    }
     funnelChartInstance = echarts.init(funnelChart.value)
     const option = {
       title: {
@@ -153,6 +144,9 @@
 
   const initHeatmapChart = (data: DashboardData['productHeatmap']) => {
     if (!heatmapChart.value) return
+    if (heatmapChartInstance) {
+      heatmapChartInstance.dispose()
+    }
     heatmapChartInstance = echarts.init(heatmapChart.value)
     const option = {
       title: {
@@ -213,20 +207,24 @@
     heatmapChartInstance?.resize()
   }
 
-  watch(
-    () => store.dashboardData,
-    newData => {
-      if (newData) {
-        dashboardData.value = newData
-        initFunnelChart(newData.userConversion)
-        initHeatmapChart(newData.productHeatmap)
+  const initData = async () => {
+    try {
+      await store.fetchDashboardData()
+      dashboardData.value = store.dashboardData
+      if (dashboardData.value) {
+        initFunnelChart(dashboardData.value.userConversion)
+        initHeatmapChart(dashboardData.value.productHeatmap)
+      } else {
+        ElMessage.warning('没有获取到数据')
       }
-    },
-    { immediate: true }
-  )
+    } catch (error) {
+      console.error('Failed to fetch dashboard data:', error)
+      ElMessage.error('获取数据失败，请稍后重试')
+    }
+  }
 
   onMounted(async () => {
-    await store.fetchDashboardData()
+    await initData()
     window.addEventListener('resize', handleResize)
   })
 
@@ -239,29 +237,7 @@
 
 <style scoped>
   .dashboard {
-    height: 100vh;
-  }
-
-  .el-header {
-    background-color: #fff;
-    border-bottom: 1px solid #dcdfe6;
-    padding: 0 20px;
-  }
-
-  .el-header h1 {
-    margin: 0;
-    line-height: 60px;
-    font-size: 20px;
-    color: #303133;
-  }
-
-  .el-main {
-    background-color: #f5f7fa;
-    padding: 20px;
-  }
-
-  .mt-20 {
-    margin-top: 20px;
+    height: 100%;
   }
 
   .card-header {
@@ -272,15 +248,25 @@
 
   .card-content {
     text-align: center;
+    padding: 20px 0;
   }
 
   .card-content h2 {
     margin: 0;
-    font-size: 24px;
+    font-size: 28px;
     color: #303133;
+  }
+
+  .mt-20 {
+    margin-top: 20px;
   }
 
   .chart {
     height: 400px;
+    width: 100%;
+  }
+
+  .el-card {
+    margin-bottom: 20px;
   }
 </style>
